@@ -1,5 +1,6 @@
 """Model name validators for each provider."""
 
+from .factory import normalize_provider
 from .model_catalog import get_known_models
 
 
@@ -15,7 +16,7 @@ def validate_model(provider: str, model: str) -> bool:
 
     For ollama, openrouter - any model is accepted.
     """
-    provider_lower = provider.lower()
+    provider_lower = normalize_provider(provider)
 
     if provider_lower in ("ollama", "openrouter"):
         return True

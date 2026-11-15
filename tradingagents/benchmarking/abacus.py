@@ -1,0 +1,51 @@
+"""Compatibility shim for legacy Abacus benchmark imports."""
+
+from __future__ import annotations
+
+from tradingagents.benchmarking.runner import (
+    AbacusTraceCallback,
+    BenchmarkProviderBundle,
+    BenchmarkTraceCallback,
+    MODEL_SETS,
+    ModelSet,
+    ROLE_ORDER,
+    build_cost_summary,
+    build_parser,
+    build_quality_extract,
+    build_summary_parser,
+    fetch_model_catalog,
+    load_default_env,
+    load_env_file,
+    load_model_catalog,
+    main,
+    model_set_names,
+    price_by_model_from_catalog,
+    resolve_benchmark_provider_bundle,
+    run_benchmark,
+    summarize_run_dirs,
+    summary_main,
+)
+
+__all__ = [
+    "AbacusTraceCallback",
+    "BenchmarkProviderBundle",
+    "BenchmarkTraceCallback",
+    "MODEL_SETS",
+    "ModelSet",
+    "ROLE_ORDER",
+    "build_cost_summary",
+    "build_parser",
+    "build_quality_extract",
+    "build_summary_parser",
+    "fetch_model_catalog",
+    "load_default_env",
+    "load_env_file",
+    "load_model_catalog",
+    "main",
+    "model_set_names",
+    "price_by_model_from_catalog",
+    "resolve_benchmark_provider_bundle",
+    "run_benchmark",
+    "summarize_run_dirs",
+    "summary_main",
+]

@@ -1,0 +1,121 @@
+{
+  "artifact_slug": "tsmc-fab-output",
+  "artifact_label": "TSMC Fab Output",
+  "as_of_date": "2026-05-25",
+  "methodology_version": "v1",
+  "entities": [
+    {
+      "entity_id": "tsmc",
+      "name": "TSMC",
+      "entity_type": "fab-operator",
+      "role_in_fab_output": "advanced logic foundry",
+      "country": "Taiwan",
+      "is_public": true,
+      "ticker": "TSM",
+      "description": "Leading advanced-node semiconductor foundry."
+    },
+    {
+      "entity_id": "asml",
+      "name": "ASML",
+      "entity_type": "equipment-supplier",
+      "role_in_fab_output": "EUV lithography",
+      "country": "Netherlands",
+      "is_public": true,
+      "ticker": "ASML",
+      "description": "Primary EUV lithography tool supplier."
+    },
+    {
+      "entity_id": "tel",
+      "name": "Tokyo Electron",
+      "entity_type": "equipment-supplier",
+      "role_in_fab_output": "deposition and etch",
+      "country": "Japan",
+      "is_public": true,
+      "ticker": "8035.T",
+      "description": "Critical wafer processing equipment supplier."
+    },
+    {
+      "entity_id": "entg",
+      "name": "Entegris",
+      "entity_type": "materials-supplier",
+      "role_in_fab_output": "filtration and specialty materials",
+      "country": "United States",
+      "is_public": true,
+      "ticker": "ENTG",
+      "description": "Supplier of filtration, handling, and specialty materials."
+    }
+  ],
+  "evidence_records": [
+    {
+      "evidence_id": "ev1",
+      "title": "ASML annual report",
+      "publisher": "ASML",
+      "source_type": "annual-report",
+      "published_on": "2026-01-31",
+      "url_or_path": "https://example.com/asml-annual-report",
+      "tier": 1,
+      "claim_text": "EUV tool supply remains capacity-constrained and mission-critical for advanced-node output.",
+      "entities": ["asml", "tsmc"],
+      "notes": "Tier 1 company disclosure."
+    },
+    {
+      "evidence_id": "ev2",
+      "title": "Tokyo Electron process tool overview",
+      "publisher": "Tokyo Electron",
+      "source_type": "investor-presentation",
+      "published_on": "2026-02-14",
+      "url_or_path": "https://example.com/tel-process-tools",
+      "tier": 1,
+      "claim_text": "Deposition and etch remain high-criticality steps in advanced semiconductor output.",
+      "entities": ["tel", "tsmc"],
+      "notes": "Tier 1 equipment disclosure."
+    },
+    {
+      "evidence_id": "ev3",
+      "title": "Entegris filtration note",
+      "publisher": "Industry publication",
+      "source_type": "industry-analysis",
+      "published_on": "2026-03-02",
+      "url_or_path": "https://example.com/entg-filtration",
+      "tier": 2,
+      "claim_text": "High-purity filtration and materials handling remain necessary for advanced fab uptime and yield.",
+      "entities": ["entg", "tsmc"],
+      "notes": "Tier 2 industry analysis."
+    }
+  ],
+  "dependencies": [
+    {
+      "edge_id": "edge-asml-tsmc",
+      "from_entity_id": "asml",
+      "to_entity_id": "tsmc",
+      "dependency_type": "lithography",
+      "criticality": 10,
+      "concentration_score": 10,
+      "substitutability_score": 1,
+      "evidence_ids": ["ev1"],
+      "inference_note": ""
+    },
+    {
+      "edge_id": "edge-tel-tsmc",
+      "from_entity_id": "tel",
+      "to_entity_id": "tsmc",
+      "dependency_type": "etch-deposition",
+      "criticality": 8,
+      "concentration_score": 6,
+      "substitutability_score": 4,
+      "evidence_ids": ["ev2"],
+      "inference_note": ""
+    },
+    {
+      "edge_id": "edge-entg-tsmc",
+      "from_entity_id": "entg",
+      "to_entity_id": "tsmc",
+      "dependency_type": "materials-filtration",
+      "criticality": 7,
+      "concentration_score": 5,
+      "substitutability_score": 5,
+      "evidence_ids": ["ev3"],
+      "inference_note": ""
+    }
+  ]
+}
