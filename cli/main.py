@@ -24,7 +24,6 @@ from rich import box
 from rich.align import Align
 from rich.rule import Rule
 
-from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 from cli.models import AnalystType
 from cli.utils import *
@@ -38,6 +37,32 @@ app = typer.Typer(
     help="TradingAgents CLI: Multi-Agents LLM Financial Trading Framework",
     add_completion=True,  # Enable shell completion
 )
+
+
+@app.callback(invoke_without_command=True)
+def root(
+    ctx: typer.Context,
+    checkpoint: bool = typer.Option(
+        False,
+        "--checkpoint",
+        help="Enable checkpoint/resume: save state after each node so a crashed run can resume.",
+    ),
+    clear_checkpoints: bool = typer.Option(
+        False,
+        "--clear-checkpoints",
+        help="Delete all saved checkpoints before running (force fresh start).",
+    ),
+):
+    if ctx.invoked_subcommand is not None:
+        return
+
+    if clear_checkpoints:
+        from tradingagents.graph.checkpointer import clear_all_checkpoints
+
+        n = clear_all_checkpoints(DEFAULT_CONFIG["data_cache_dir"])
+        console.print(f"[yellow]Cleared {n} checkpoint(s).[/yellow]")
+
+    run_analysis(checkpoint=checkpoint)
 
 
 # Create a deque to store recent messages with a maximum length
@@ -554,7 +579,7 @@ def get_user_selections():
             "Step 6: LLM Provider", "Select your LLM provider"
         )
     )
-    selected_llm_provider, backend_url = select_llm_provider()
+    selected_llm_provider = select_llm_provider()
 
     # Step 7: Thinking agents
     console.print(
@@ -602,7 +627,6 @@ def get_user_selections():
         "analysts": selected_analysts,
         "research_depth": selected_research_depth,
         "llm_provider": selected_llm_provider.lower(),
-        "backend_url": backend_url,
         "shallow_thinker": selected_shallow_thinker,
         "deep_thinker": selected_deep_thinker,
         "google_thinking_level": thinking_level,
@@ -638,92 +662,9 @@ def get_analysis_date():
 
 def save_report_to_disk(final_state, ticker: str, save_path: Path):
     """Save complete analysis report to disk with organized subfolders."""
-    save_path.mkdir(parents=True, exist_ok=True)
-    sections = []
+    from tradingagents.reporting import save_report_to_disk as shared_save_report
 
-    # 1. Analysts
-    analysts_dir = save_path / "1_analysts"
-    analyst_parts = []
-    if final_state.get("market_report"):
-        analysts_dir.mkdir(exist_ok=True)
-        (analysts_dir / "market.md").write_text(final_state["market_report"], encoding="utf-8")
-        analyst_parts.append(("Market Analyst", final_state["market_report"]))
-    if final_state.get("sentiment_report"):
-        analysts_dir.mkdir(exist_ok=True)
-        (analysts_dir / "sentiment.md").write_text(final_state["sentiment_report"], encoding="utf-8")
-        analyst_parts.append(("Social Analyst", final_state["sentiment_report"]))
-    if final_state.get("news_report"):
-        analysts_dir.mkdir(exist_ok=True)
-        (analysts_dir / "news.md").write_text(final_state["news_report"], encoding="utf-8")
-        analyst_parts.append(("News Analyst", final_state["news_report"]))
-    if final_state.get("fundamentals_report"):
-        analysts_dir.mkdir(exist_ok=True)
-        (analysts_dir / "fundamentals.md").write_text(final_state["fundamentals_report"], encoding="utf-8")
-        analyst_parts.append(("Fundamentals Analyst", final_state["fundamentals_report"]))
-    if analyst_parts:
-        content = "\n\n".join(f"### {name}\n{text}" for name, text in analyst_parts)
-        sections.append(f"## I. Analyst Team Reports\n\n{content}")
-
-    # 2. Research
-    if final_state.get("investment_debate_state"):
-        research_dir = save_path / "2_research"
-        debate = final_state["investment_debate_state"]
-        research_parts = []
-        if debate.get("bull_history"):
-            research_dir.mkdir(exist_ok=True)
-            (research_dir / "bull.md").write_text(debate["bull_history"], encoding="utf-8")
-            research_parts.append(("Bull Researcher", debate["bull_history"]))
-        if debate.get("bear_history"):
-            research_dir.mkdir(exist_ok=True)
-            (research_dir / "bear.md").write_text(debate["bear_history"], encoding="utf-8")
-            research_parts.append(("Bear Researcher", debate["bear_history"]))
-        if debate.get("judge_decision"):
-            research_dir.mkdir(exist_ok=True)
-            (research_dir / "manager.md").write_text(debate["judge_decision"], encoding="utf-8")
-            research_parts.append(("Research Manager", debate["judge_decision"]))
-        if research_parts:
-            content = "\n\n".join(f"### {name}\n{text}" for name, text in research_parts)
-            sections.append(f"## II. Research Team Decision\n\n{content}")
-
-    # 3. Trading
-    if final_state.get("trader_investment_plan"):
-        trading_dir = save_path / "3_trading"
-        trading_dir.mkdir(exist_ok=True)
-        (trading_dir / "trader.md").write_text(final_state["trader_investment_plan"], encoding="utf-8")
-        sections.append(f"## III. Trading Team Plan\n\n### Trader\n{final_state['trader_investment_plan']}")
-
-    # 4. Risk Management
-    if final_state.get("risk_debate_state"):
-        risk_dir = save_path / "4_risk"
-        risk = final_state["risk_debate_state"]
-        risk_parts = []
-        if risk.get("aggressive_history"):
-            risk_dir.mkdir(exist_ok=True)
-            (risk_dir / "aggressive.md").write_text(risk["aggressive_history"], encoding="utf-8")
-            risk_parts.append(("Aggressive Analyst", risk["aggressive_history"]))
-        if risk.get("conservative_history"):
-            risk_dir.mkdir(exist_ok=True)
-            (risk_dir / "conservative.md").write_text(risk["conservative_history"], encoding="utf-8")
-            risk_parts.append(("Conservative Analyst", risk["conservative_history"]))
-        if risk.get("neutral_history"):
-            risk_dir.mkdir(exist_ok=True)
-            (risk_dir / "neutral.md").write_text(risk["neutral_history"], encoding="utf-8")
-            risk_parts.append(("Neutral Analyst", risk["neutral_history"]))
-        if risk_parts:
-            content = "\n\n".join(f"### {name}\n{text}" for name, text in risk_parts)
-            sections.append(f"## IV. Risk Management Team Decision\n\n{content}")
-
-        # 5. Portfolio Manager
-        if risk.get("judge_decision"):
-            portfolio_dir = save_path / "5_portfolio"
-            portfolio_dir.mkdir(exist_ok=True)
-            (portfolio_dir / "decision.md").write_text(risk["judge_decision"], encoding="utf-8")
-            sections.append(f"## V. Portfolio Manager Decision\n\n### Portfolio Manager\n{risk['judge_decision']}")
-
-    # Write consolidated report
-    header = f"# Trading Analysis Report: {ticker}\n\nGenerated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-    (save_path / "complete_report.md").write_text(header + "\n\n".join(sections), encoding="utf-8")
-    return save_path / "complete_report.md"
+    return shared_save_report(final_state, ticker, save_path)
 
 
 def display_complete_report(final_state):
@@ -936,7 +877,6 @@ def run_analysis(checkpoint: bool = False):
     config["max_risk_discuss_rounds"] = selections["research_depth"]
     config["quick_think_llm"] = selections["shallow_thinker"]
     config["deep_think_llm"] = selections["deep_thinker"]
-    config["backend_url"] = selections["backend_url"]
     config["llm_provider"] = selections["llm_provider"].lower()
     # Provider-specific thinking configuration
     config["google_thinking_level"] = selections.get("google_thinking_level")
@@ -953,6 +893,8 @@ def run_analysis(checkpoint: bool = False):
     selected_analyst_keys = [a for a in ANALYST_ORDER if a in selected_set]
 
     # Initialize the graph with callbacks bound to LLMs
+    from tradingagents.graph.trading_graph import TradingAgentsGraph
+
     graph = TradingAgentsGraph(
         selected_analyst_keys,
         config=config,
@@ -1215,6 +1157,179 @@ def analyze(
         n = clear_all_checkpoints(DEFAULT_CONFIG["data_cache_dir"])
         console.print(f"[yellow]Cleared {n} checkpoint(s).[/yellow]")
     run_analysis(checkpoint=checkpoint)
+
+
+@app.command("analyze-headless")
+def analyze_headless(
+    ticker: str = typer.Option(
+        ...,
+        "--ticker",
+        help="Ticker symbol to analyze, for example TSM or 0700.HK.",
+    ),
+    analysis_date: Optional[str] = typer.Option(
+        None,
+        "--analysis-date",
+        help="Analysis date in YYYY-MM-DD format. Defaults to today.",
+    ),
+    output_dir: str = typer.Option(
+        "reports",
+        "--output-dir",
+        help="Root directory for generated headless reports.",
+    ),
+    output_language: str = typer.Option(
+        "English",
+        "--output-language",
+        help="Language for analyst reports and final decision.",
+    ),
+    llm_provider: str = typer.Option(
+        "openrouter",
+        "--llm-provider",
+        help="LLM provider key.",
+    ),
+    quick_model: str = typer.Option(
+        "tencent/hy3-preview",
+        "--quick-model",
+        help="Model for quick analyst roles.",
+    ),
+    deep_model: str = typer.Option(
+        "tencent/hy3-preview",
+        "--deep-model",
+        help="Model for debate, trading, risk, and portfolio roles.",
+    ),
+    analysts: str = typer.Option(
+        "market,news,fundamentals",
+        "--analysts",
+        help="Comma-separated analyst roles.",
+    ),
+    research_depth: int = typer.Option(
+        1,
+        "--research-depth",
+        min=1,
+        help="Debate and risk-discussion round count.",
+    ),
+) -> None:
+    from tradingagents.headless_runner import (
+        HeadlessAnalysisRequest,
+        normalize_analysts,
+        run_headless_analysis,
+    )
+
+    result = run_headless_analysis(
+        HeadlessAnalysisRequest(
+            ticker=ticker,
+            analysis_date=analysis_date,
+            output_language=output_language,
+            llm_provider=llm_provider,
+            quick_model=quick_model,
+            deep_model=deep_model,
+            analysts=normalize_analysts(analysts),
+            research_depth=research_depth,
+            output_dir=Path(output_dir),
+        )
+    )
+    console.print(f"[green]Headless TradingAgents analysis complete:[/green] {result.report_path}")
+    console.print(f"[green]Decision:[/green] {result.decision}")
+
+
+@app.command("build-tsmc-thesis")
+def build_tsmc_thesis(
+    seed_file: str = typer.Option(
+        ...,
+        "--seed-file",
+        help="Path to the seed corpus JSON file.",
+    ),
+    output_dir: str = typer.Option(
+        "runs",
+        "--output-dir",
+        help="Root directory for generated thesis artifacts.",
+    ),
+    top_n: int = typer.Option(
+        5,
+        "--top-n",
+        min=1,
+        help="Number of ranked securities to include in the TradingAgents handoff.",
+    ),
+) -> None:
+    from tradingagents.thesis_program.runner import build_thesis_run
+
+    run_dir = build_thesis_run(
+        seed_path=seed_file,
+        output_root=output_dir,
+        top_n=top_n,
+    )
+    console.print(f"[green]TSMC thesis artifacts written to {run_dir}[/green]")
+    console.print(
+        f"[green]TradingAgents handoff: {run_dir / 'tradingagents_handoff.json'}[/green]"
+    )
+
+
+@app.command("run-thesis-handoff")
+def run_thesis_handoff_command(
+    handoff_file: str = typer.Option(
+        ...,
+        "--handoff-file",
+        help="Path to tradingagents_handoff.json or tradingagents_request_queue.json.",
+    ),
+    output_dir: str = typer.Option(
+        "runs/thesis-handoff-analysis",
+        "--output-dir",
+        help="Root directory for downstream TradingAgents analysis outputs.",
+    ),
+    limit: Optional[int] = typer.Option(
+        None,
+        "--limit",
+        min=1,
+        help="Optional maximum number of queued securities to analyze.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Print the queued TradingAgents analysis order without executing it.",
+    ),
+    llm_timeout_seconds: Optional[int] = typer.Option(
+        90,
+        "--llm-timeout-seconds",
+        min=1,
+        help="Per-request timeout passed to the underlying LLM client.",
+    ),
+    analysis_timeout_seconds: Optional[int] = typer.Option(
+        300,
+        "--analysis-timeout-seconds",
+        min=1,
+        help="Wall-clock timeout for one queued TradingAgents analysis.",
+    ),
+) -> None:
+    from tradingagents.thesis_program.handoff_runner import run_thesis_handoff
+
+    results = run_thesis_handoff(
+        handoff_file=handoff_file,
+        output_root=output_dir,
+        limit=limit,
+        dry_run=dry_run,
+        llm_timeout_seconds=llm_timeout_seconds,
+        analysis_timeout_seconds=analysis_timeout_seconds,
+    )
+    if dry_run:
+        console.print("[green]TradingAgents handoff queue:[/green]")
+        for request in results:
+            console.print(
+                f"{request['priority_rank']}. {request['ticker']} ({request['analysis_date']})"
+            )
+        return
+
+    console.print("[green]Completed TradingAgents handoff analysis:[/green]")
+    for result in results:
+        if result.get("status") == "completed":
+            console.print(
+                f"{result['priority_rank']}. {result['ticker']} -> {result['rating']}"
+            )
+        else:
+            console.print(
+                f"[red]{result['priority_rank']}. {result['ticker']} failed: "
+                f"{result.get('error', 'unknown error')}[/red]"
+            )
+    if any(result.get("status") == "failed" for result in results):
+        raise typer.Exit(1)
 
 
 if __name__ == "__main__":

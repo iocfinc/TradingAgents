@@ -108,15 +108,9 @@ git clone https://github.com/TauricResearch/TradingAgents.git
 cd TradingAgents
 ```
 
-Create a virtual environment in any of your favorite environment managers:
+Sync the project environment with `uv`:
 ```bash
-conda create -n tradingagents python=3.13
-conda activate tradingagents
-```
-
-Install the package and its dependencies:
-```bash
-pip install .
+uv sync
 ```
 
 ### Docker
@@ -155,6 +149,28 @@ For local models, configure Ollama with `llm_provider: "ollama"` in your config.
 Alternatively, copy `.env.example` to `.env` and fill in your keys:
 ```bash
 cp .env.example .env
+```
+
+For OpenRouter, point OpenAI-compatible clients at:
+
+```bash
+export TRADINGAGENTS_LLM_PROVIDER=openrouter
+export OPENROUTER_API_KEY=...
+# base URL: https://openrouter.ai/api/v1
+```
+
+If an external runner still emits `abacus_ai`, TradingAgents maps that alias to
+the canonical `openrouter` provider internally, so existing env files can stay
+in place while Abacus is unavailable.
+
+For Abacus RouteLLM-compatible routing, keep the provider OpenAI-compatible but use direct model IDs instead of the `route-llm` router model:
+
+```bash
+export ABACUS_API_KEY=...
+export ABACUS_BASE_URL=https://routellm.abacus.ai/v1
+export ABACUS_DEEP_MODEL=gpt-5.4
+export ABACUS_QUICK_MODEL=gpt-5.4-mini
+export ABACUS_AGENT_MODEL_MAP='{"market":"gpt-5.4-mini","social":"gpt-5.4-mini","news":"gpt-5.4-mini","fundamentals":"gpt-5.4-mini","risk_reflection":"gpt-5.4-mini","bull_researcher":"gpt-5.4","bear_researcher":"gpt-5.4","research_manager":"gpt-5.4","trader":"gpt-5.4","portfolio_manager":"gpt-5.4"}'
 ```
 
 ### CLI Usage
@@ -208,9 +224,21 @@ from tradingagents.graph.trading_graph import TradingAgentsGraph
 from tradingagents.default_config import DEFAULT_CONFIG
 
 config = DEFAULT_CONFIG.copy()
-config["llm_provider"] = "openai"        # openai, google, anthropic, xai, deepseek, qwen, glm, openrouter, ollama, azure
+config["llm_provider"] = "openai"        # openai, abacus, google, anthropic, xai, deepseek, qwen, glm, openrouter, ollama, azure; abacus_ai aliases to openrouter
 config["deep_think_llm"] = "gpt-5.4"     # Model for complex reasoning
 config["quick_think_llm"] = "gpt-5.4-mini" # Model for quick tasks
+config["agent_model_map"] = {
+    "market": "gpt-5.4-mini",
+    "social": "gpt-5.4-mini",
+    "news": "gpt-5.4-mini",
+    "fundamentals": "gpt-5.4-mini",
+    "risk_reflection": "gpt-5.4-mini",
+    "bull_researcher": "gpt-5.4",
+    "bear_researcher": "gpt-5.4",
+    "research_manager": "gpt-5.4",
+    "trader": "gpt-5.4",
+    "portfolio_manager": "gpt-5.4",
+}
 config["max_debate_rounds"] = 2
 
 ta = TradingAgentsGraph(debug=True, config=config)

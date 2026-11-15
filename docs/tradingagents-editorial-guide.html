@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TradingAgents: Flow, Verdicts, and Glossary</title>
+    <style>
+      :root {
+        --paper: #f6f1e7;
+        --paper-strong: #efe7d7;
+        --ink: #1f1b16;
+        --muted: #62584a;
+        --line: rgba(31, 27, 22, 0.14);
+        --accent: #a33e1d;
+        --accent-soft: rgba(163, 62, 29, 0.1);
+        --card: rgba(255, 251, 244, 0.78);
+        --shadow: 0 24px 80px rgba(58, 40, 18, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        font-family: "Georgia", "Iowan Old Style", "Palatino Linotype", serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(163, 62, 29, 0.12), transparent 32%),
+          radial-gradient(circle at top right, rgba(102, 84, 56, 0.12), transparent 28%),
+          linear-gradient(180deg, #fbf8f2 0%, var(--paper) 45%, #f3ebdd 100%);
+      }
+
+      a {
+        color: inherit;
+      }
+
+      .frame {
+        width: min(1180px, calc(100vw - 40px));
+        margin: 0 auto;
+        padding: 32px 0 72px;
+      }
+
+      .hero {
+        position: relative;
+        overflow: hidden;
+        padding: 44px;
+        border: 1px solid var(--line);
+        border-radius: 32px;
+        background:
+          linear-gradient(160deg, rgba(255, 251, 244, 0.94), rgba(244, 235, 220, 0.86)),
+          var(--card);
+        box-shadow: var(--shadow);
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: 18px;
+        border: 1px solid rgba(31, 27, 22, 0.08);
+        border-radius: 24px;
+        pointer-events: none;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font: 600 12px/1.2 "Helvetica Neue", "Arial", sans-serif;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        font-weight: 600;
+        letter-spacing: -0.03em;
+      }
+
+      h1 {
+        margin-top: 22px;
+        max-width: 10ch;
+        font-size: clamp(3rem, 8vw, 5.8rem);
+        line-height: 0.94;
+      }
+
+      .hero-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.9fr);
+        gap: 28px;
+        margin-top: 28px;
+      }
+
+      .lede {
+        max-width: 64ch;
+        color: var(--muted);
+        font-size: 1.08rem;
+        line-height: 1.8;
+      }
+
+      .deck {
+        border-left: 2px solid var(--accent);
+        padding-left: 18px;
+        margin-top: 20px;
+        color: var(--ink);
+        font-size: 1.02rem;
+        line-height: 1.75;
+      }
+
+      .hero-notes {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+      }
+
+      .stat-card,
+      .section-card,
+      .glossary-card {
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: rgba(255, 252, 246, 0.84);
+        box-shadow: 0 16px 50px rgba(58, 40, 18, 0.08);
+      }
+
+      .stat-card {
+        padding: 22px;
+      }
+
+      .stat-card .label {
+        color: var(--muted);
+        font: 600 0.75rem/1.3 "Helvetica Neue", "Arial", sans-serif;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .stat-card .value {
+        margin-top: 12px;
+        font-size: 2.1rem;
+        line-height: 1;
+      }
+
+      .stat-card p {
+        margin: 10px 0 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .main-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.12fr) minmax(280px, 0.7fr);
+        gap: 26px;
+        margin-top: 26px;
+      }
+
+      .section-card {
+        padding: 28px;
+      }
+
+      .section-card h2 {
+        font-size: clamp(1.8rem, 4vw, 2.7rem);
+        line-height: 1;
+      }
+
+      .section-card p {
+        color: var(--muted);
+        line-height: 1.75;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 16px;
+        margin-top: 22px;
+      }
+
+      .timeline-step {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+        padding: 16px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .timeline-step:first-child {
+        border-top: 0;
+        padding-top: 0;
+      }
+
+      .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 52px;
+        height: 52px;
+        border-radius: 50%;
+        border: 1px solid rgba(163, 62, 29, 0.28);
+        background: var(--accent-soft);
+        color: var(--accent);
+        font: 600 0.92rem/1 "Helvetica Neue", "Arial", sans-serif;
+      }
+
+      .timeline-step h3 {
+        font-size: 1.15rem;
+        line-height: 1.2;
+      }
+
+      .timeline-step p {
+        margin: 8px 0 0;
+      }
+
+      .aside-stack {
+        display: grid;
+        gap: 24px;
+        align-content: start;
+      }
+
+      .mini-list {
+        display: grid;
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .mini-item {
+        padding: 14px 16px;
+        border-radius: 18px;
+        background: rgba(239, 231, 215, 0.46);
+        border: 1px solid rgba(31, 27, 22, 0.08);
+      }
+
+      .mini-item strong {
+        display: block;
+        margin-bottom: 4px;
+        font-size: 0.98rem;
+      }
+
+      .depth-grid,
+      .verdict-grid,
+      .glossary-grid {
+        display: grid;
+        gap: 18px;
+        margin-top: 22px;
+      }
+
+      .depth-grid,
+      .verdict-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .depth-card,
+      .verdict-card,
+      .glossary-card {
+        padding: 20px;
+      }
+
+      .depth-card,
+      .verdict-card {
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 251, 244, 0.92);
+      }
+
+      .depth-card h3,
+      .verdict-card h3,
+      .glossary-card h3 {
+        font-size: 1.12rem;
+        line-height: 1.2;
+      }
+
+      .depth-card p,
+      .verdict-card p,
+      .glossary-card p {
+        margin: 10px 0 0;
+        color: var(--muted);
+      }
+
+      .glossary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .callout {
+        margin-top: 20px;
+        padding: 18px 20px;
+        border-left: 3px solid var(--accent);
+        border-radius: 0 18px 18px 0;
+        background: rgba(163, 62, 29, 0.07);
+      }
+
+      .callout strong {
+        display: block;
+        margin-bottom: 8px;
+        font: 700 0.8rem/1.3 "Helvetica Neue", "Arial", sans-serif;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+
+      .footer-note {
+        margin-top: 26px;
+        color: var(--muted);
+        font-size: 0.95rem;
+        line-height: 1.7;
+      }
+
+      @media (max-width: 960px) {
+        .hero,
+        .section-card,
+        .glossary-card {
+          border-radius: 24px;
+        }
+
+        .hero-grid,
+        .main-grid,
+        .depth-grid,
+        .verdict-grid,
+        .glossary-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .frame {
+          width: min(100vw - 24px, 1180px);
+          padding-top: 18px;
+        }
+
+        .hero,
+        .section-card {
+          padding: 24px;
+        }
+
+        .timeline-step {
+          grid-template-columns: 56px minmax(0, 1fr);
+          gap: 14px;
+        }
+
+        .step-number {
+          width: 42px;
+          height: 42px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="frame">
+      <section class="hero">
+        <div class="eyebrow">TradingAgents Editorial Guide</div>
+        <h1>What this system actually does before it says “Buy” or “Sell.”</h1>
+        <div class="hero-grid">
+          <div>
+            <p class="lede">
+              TradingAgents is not one model making a snap call. It is a staged
+              argument. First, specialist analysts collect different kinds of
+              evidence. Then opposing researchers debate whether the case is
+              strong enough. Then a trader turns that argument into an execution
+              plan. Then a risk committee debates the downside. Only after that
+              does the portfolio manager issue the final verdict.
+            </p>
+            <p class="deck">
+              If you are not from finance, the easiest way to read the system is
+              to separate three layers: evidence terms, recommendation terms,
+              and action terms. “Oversold” is evidence. “Underweight” is a
+              recommendation. “Sell” is an action.
+            </p>
+          </div>
+          <div class="hero-notes">
+            <div class="stat-card">
+              <div class="label">Core flow</div>
+              <div class="value">4 analysts -> 2 debates -> 1 final rating</div>
+              <p>
+                Market, social, news, and fundamentals feed a bull/bear debate,
+                then a second risk debate, before the final portfolio decision.
+              </p>
+            </div>
+            <div class="stat-card">
+              <div class="label">Final rating scale</div>
+              <div class="value">Buy / Overweight / Hold / Underweight / Sell</div>
+              <p>
+                These are the user-facing verdicts you should decode first.
+                Everything else is supporting evidence or execution detail.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="main-grid">
+        <article class="section-card">
+          <h2>The flow, step by step</h2>
+          <p>
+            The system is deliberately layered so that one type of evidence does
+            not dominate too early. Technical charts, news, balance sheet
+            quality, and social mood all get their own voice before the debate
+            starts.
+          </p>
+          <div class="timeline">
+            <div class="timeline-step">
+              <div class="step-number">01</div>
+              <div>
+                <h3>Analyst intake</h3>
+                <p>
+                  The Market Analyst reads price action and technical indicators.
+                  The Social Analyst reads sentiment. The News Analyst reads
+                  current events. The Fundamentals Analyst reads business and
+                  valuation signals.
+                </p>
+              </div>
+            </div>
+            <div class="timeline-step">
+              <div class="step-number">02</div>
+              <div>
+                <h3>Bull vs bear investment debate</h3>
+                <p>
+                  Two researchers argue the upside case and the downside case.
+                  This is where the system tests whether the evidence deserves
+                  conviction or only caution.
+                </p>
+              </div>
+            </div>
+            <div class="timeline-step">
+              <div class="step-number">03</div>
+              <div>
+                <h3>Research Manager recommendation</h3>
+                <p>
+                  The Research Manager collapses the argument into an investment
+                  recommendation on the five-step scale: Buy, Overweight, Hold,
+                  Underweight, or Sell.
+                </p>
+              </div>
+            </div>
+            <div class="timeline-step">
+              <div class="step-number">04</div>
+              <div>
+                <h3>Trader proposal</h3>
+                <p>
+                  The Trader converts the recommendation into an execution plan:
+                  what to do now, at what kind of level, and with what kind of
+                  stop or sizing logic.
+                </p>
+              </div>
+            </div>
+            <div class="timeline-step">
+              <div class="step-number">05</div>
+              <div>
+                <h3>Risk debate</h3>
+                <p>
+                  Aggressive, Conservative, and Neutral risk analysts debate
+                  whether the proposed trade overreaches, undershoots, or needs
+                  better guardrails.
+                </p>
+              </div>
+            </div>
+            <div class="timeline-step">
+              <div class="step-number">06</div>
+              <div>
+                <h3>Portfolio Manager final verdict</h3>
+                <p>
+                  The Portfolio Manager issues the final user-facing decision.
+                  This is the verdict that gets logged and should be treated as
+                  the system’s official answer.
+                </p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+        <aside class="aside-stack">
+          <section class="section-card">
+            <h2>What “depth” really changes</h2>
+            <p>
+              In this checkout, depth is mainly a debate-length control. It does
+              not add new analyst types or a different verdict scale.
+            </p>
+            <div class="mini-list">
+              <div class="mini-item">
+                <strong>Shallow</strong>
+                One unit of investment debate and one unit of risk discussion.
+                Fast pass, lower deliberation cost.
+              </div>
+              <div class="mini-item">
+                <strong>Medium</strong>
+                More back-and-forth on both debate layers. Better when evidence
+                is mixed and you want the opposing side to push harder.
+              </div>
+              <div class="mini-item">
+                <strong>Deep</strong>
+                Longest argument loop. Best when you want a more contested final
+                decision instead of the fastest one.
+              </div>
+            </div>
+          </section>
+
+          <section class="section-card">
+            <h2>Keep this distinction straight</h2>
+            <div class="mini-list">
+              <div class="mini-item">
+                <strong>Evidence words</strong>
+                Overbought, oversold, bullish crossover, support, resistance.
+              </div>
+              <div class="mini-item">
+                <strong>Recommendation words</strong>
+                Buy, Overweight, Hold, Underweight, Sell.
+              </div>
+              <div class="mini-item">
+                <strong>Execution words</strong>
+                Entry, stop-loss, trim, add, position size, time horizon.
+              </div>
+            </div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="section-card" style="margin-top: 26px;">
+        <h2>How to read the final verdict</h2>
+        <p>
+          The recommendation scale is not pure chart jargon. It is a portfolio
+          stance scale. Think of it as a slider from strong confidence to strong
+          avoidance.
+        </p>
+        <div class="verdict-grid">
+          <div class="verdict-card">
+            <h3>Buy</h3>
+            <p>
+              Strong positive view. The system thinks you should enter or add to
+              the position now or soon, subject to the stated execution rules.
+            </p>
+          </div>
+          <div class="verdict-card">
+            <h3>Overweight</h3>
+            <p>
+              Positive, but not maximum conviction. Own more than a normal
+              baseline allocation, usually by adding gradually or on confirmed
+              pullbacks.
+            </p>
+          </div>
+          <div class="verdict-card">
+            <h3>Hold</h3>
+            <p>
+              Balanced or unresolved. Keep existing exposure, but do not treat
+              the setup as strong enough to add aggressively.
+            </p>
+          </div>
+          <div class="verdict-card">
+            <h3>Underweight</h3>
+            <p>
+              Cautious or mildly negative. Own less than a normal baseline
+              allocation. This often means trimming rather than full exit.
+            </p>
+          </div>
+          <div class="verdict-card">
+            <h3>Sell</h3>
+            <p>
+              Strong negative view. Exit, avoid entry, or, for some strategies,
+              take the opposite side if the execution plan explicitly supports
+              it.
+            </p>
+          </div>
+          <div class="verdict-card">
+            <h3>Why this confuses non-finance readers</h3>
+            <p>
+              “Overweight” and “Underweight” sound like chart adjectives. They
+              are not. They are portfolio allocation language: more than usual,
+              or less than usual.
+            </p>
+          </div>
+        </div>
+        <div class="callout">
+          <strong>Important</strong>
+          “Oversold” does not mean “Buy.” It means the price may have fallen a
+          lot, fast. The system can still end in Hold or Underweight if the rest
+          of the evidence stays weak.
+        </div>
+      </section>
+
+      <section class="section-card" style="margin-top: 26px;">
+        <h2>The glossary for the reports you will actually read</h2>
+        <p>
+          These are the recurring report terms that most often block
+          comprehension for non-finance readers. The plain-English reading is
+          more important than the textbook definition.
+        </p>
+        <div class="glossary-grid">
+          <div class="glossary-card">
+            <h3>ATR</h3>
+            <p>
+              Average True Range. A volatility gauge. Higher ATR means the price
+              is swinging more each day, so stops usually need more room.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>RSI</h3>
+            <p>
+              Relative Strength Index. A momentum measure often used to spot
+              overbought or oversold conditions. It is a clue, not a verdict.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>MACD</h3>
+            <p>
+              A momentum trend indicator built from moving averages. Traders use
+              it to judge whether momentum is strengthening, weakening, or
+              reversing.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>MACD histogram</h3>
+            <p>
+              A quick read on momentum acceleration or fade. When it shrinks,
+              the move is often losing force even if price has not fully turned.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>SMA / EMA</h3>
+            <p>
+              Moving averages. SMA is smoother and slower. EMA reacts faster.
+              They are often used as trend lines, support, or resistance zones.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>Bollinger Bands</h3>
+            <p>
+              A volatility envelope around price. Touching the upper band can
+              hint at heat or extension; touching the lower band can hint at
+              stress or oversold conditions.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>VWMA</h3>
+            <p>
+              Volume-Weighted Moving Average. Similar to a moving average, but it
+              gives more influence to high-volume sessions, which can make the
+              trend signal more grounded.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>Support / resistance</h3>
+            <p>
+              Support is where buyers often appear. Resistance is where sellers
+              often appear. A break through either level can change the whole
+              trade setup.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>Overbought / oversold</h3>
+            <p>
+              These describe stretched momentum, not automatic reversals.
+              Overbought can stay overbought in a strong uptrend, and oversold
+              can stay oversold in a strong downtrend.
+            </p>
+          </div>
+          <div class="glossary-card">
+            <h3>P/E, P/B, FCF yield</h3>
+            <p>
+              Basic valuation shorthand. They ask whether the stock is expensive
+              or cheap relative to earnings, book value, or cash generation.
+            </p>
+          </div>
+        </div>
+        <p class="footer-note">
+          This page is grounded in the current TradingAgents checkout: the
+          multi-stage flow from analysts through Portfolio Manager, the
+          three-level research depth setting, and the five-step rating scale
+          used by the structured decision agents.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>
