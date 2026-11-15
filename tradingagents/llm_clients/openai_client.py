@@ -1,4 +1,5 @@
-import os
+import time
+from json import JSONDecodeError
 from typing import Any, Optional
 
 from langchain_core.messages import AIMessage
@@ -23,6 +24,10 @@ class NormalizedChatOpenAI(ChatOpenAI):
     purpose-built subclasses below so this base class stays small.
     """
 
+    provider_name: str = "openai"
+    json_retry_attempts: int = 0
+    json_retry_backoff_seconds: float = 0.5
+
     def invoke(self, input, config=None, **kwargs):
         return normalize_content(super().invoke(input, config, **kwargs))
 
@@ -30,6 +35,21 @@ class NormalizedChatOpenAI(ChatOpenAI):
         if method is None:
             method = "function_calling"
         return super().with_structured_output(schema, method=method, **kwargs)
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        attempts = max(1, int(self.json_retry_attempts) + 1)
+        for attempt in range(1, attempts + 1):
+            try:
+                return super()._generate(
+                    messages,
+                    stop=stop,
+                    run_manager=run_manager,
+                    **kwargs,
+                )
+            except JSONDecodeError:
+                if attempt >= attempts:
+                    raise
+                time.sleep(float(self.json_retry_backoff_seconds) * attempt)
 
 
 def _input_to_messages(input_: Any) -> list:
@@ -107,21 +127,11 @@ class DeepSeekChatOpenAI(NormalizedChatOpenAI):
 _PASSTHROUGH_KWARGS = (
     "timeout", "max_retries", "reasoning_effort",
     "api_key", "callbacks", "http_client", "http_async_client",
+    "tags", "metadata", "max_tokens", "max_completion_tokens",
 )
 
-# Provider base URLs and API key env vars
-_PROVIDER_CONFIG = {
-    "xai": ("https://api.x.ai/v1", "XAI_API_KEY"),
-    "deepseek": ("https://api.deepseek.com", "DEEPSEEK_API_KEY"),
-    "qwen": ("https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "DASHSCOPE_API_KEY"),
-    "glm": ("https://api.z.ai/api/paas/v4/", "ZHIPU_API_KEY"),
-    "openrouter": ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY"),
-    "ollama": ("http://localhost:11434/v1", None),
-}
-
-
 class OpenAIClient(BaseLLMClient):
-    """Client for OpenAI, Ollama, OpenRouter, and xAI providers.
+    """Client for OpenAI-compatible providers.
 
     For native OpenAI models, uses the Responses API (/v1/responses) which
     supports reasoning_effort with function tools across all model families
@@ -144,20 +154,10 @@ class OpenAIClient(BaseLLMClient):
         self.warn_if_unknown_model()
         llm_kwargs = {"model": self.model}
 
-        # Provider-specific base URL and auth. An explicit base_url on the
-        # client (e.g. a corporate proxy) takes precedence over the
-        # provider default so users can route through their own gateway.
-        if self.provider in _PROVIDER_CONFIG:
-            default_base, api_key_env = _PROVIDER_CONFIG[self.provider]
-            llm_kwargs["base_url"] = self.base_url or default_base
-            if api_key_env:
-                api_key = os.environ.get(api_key_env)
-                if api_key:
-                    llm_kwargs["api_key"] = api_key
-            else:
-                llm_kwargs["api_key"] = "ollama"
-        elif self.base_url:
+        if self.base_url:
             llm_kwargs["base_url"] = self.base_url
+        if self.provider == "ollama" and "api_key" not in llm_kwargs:
+            llm_kwargs["api_key"] = "ollama"
 
         # Forward user-provided kwargs
         for key in _PASSTHROUGH_KWARGS:
@@ -168,6 +168,13 @@ class OpenAIClient(BaseLLMClient):
         # all model families. Third-party providers use Chat Completions.
         if self.provider == "openai":
             llm_kwargs["use_responses_api"] = True
+
+        llm_kwargs["provider_name"] = self.provider
+        if self.provider != "openai":
+            # Third-party OpenAI-compatible gateways can occasionally return
+            # malformed 200 OK payloads. Retry a couple of times before the
+            # graph fails the whole analysis run.
+            llm_kwargs.setdefault("json_retry_attempts", 2)
 
         # DeepSeek's thinking-mode quirks live in their own subclass so the
         # base NormalizedChatOpenAI stays free of provider-specific branches.

@@ -14,9 +14,10 @@ logger = logging.getLogger(__name__)
 from langgraph.prebuilt import ToolNode
 
 from tradingagents.llm_clients import create_llm_client
+from tradingagents.llm_clients.factory import normalize_provider, resolve_provider_bundle
 
 from tradingagents.agents import *
-from tradingagents.default_config import DEFAULT_CONFIG
+from tradingagents.default_config import DEFAULT_CONFIG, get_default_agent_model_map
 from tradingagents.agents.utils.memory import TradingMemoryLog
 from tradingagents.dataflows.utils import safe_ticker_component
 from tradingagents.agents.utils.agent_states import (
@@ -45,6 +46,73 @@ from .setup import GraphSetup
 from .propagation import Propagator
 from .reflection import Reflector
 from .signal_processing import SignalProcessor
+
+ROLE_LLM_ORDER = (
+    "market",
+    "social",
+    "news",
+    "fundamentals",
+    "bull_researcher",
+    "bear_researcher",
+    "research_manager",
+    "trader",
+    "portfolio_manager",
+    "risk_reflection",
+)
+
+
+def resolve_agent_model_map(config: Dict[str, Any]) -> Dict[str, str]:
+    provider = normalize_provider(
+        config.get("llm_provider", DEFAULT_CONFIG["llm_provider"])
+    )
+    model_map = get_default_agent_model_map(provider)
+    raw_map = config.get("agent_model_map") or {}
+    if isinstance(raw_map, dict):
+        for key, value in raw_map.items():
+            if isinstance(key, str) and isinstance(value, str) and value.strip():
+                model_map[key] = value.strip()
+
+    quick_model = config.get("quick_think_llm")
+    if isinstance(quick_model, str) and quick_model.strip():
+        for role in ("market", "social", "news", "fundamentals"):
+            model_map[role] = quick_model.strip()
+
+    deep_model = config.get("deep_think_llm")
+    if isinstance(deep_model, str) and deep_model.strip():
+        for role in (
+            "bull_researcher",
+            "bear_researcher",
+            "research_manager",
+            "trader",
+            "portfolio_manager",
+            "risk_reflection",
+        ):
+            model_map[role] = deep_model.strip()
+
+    return model_map
+
+
+def build_role_llm_specs(
+    config: Dict[str, Any],
+    extra_kwargs: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Dict[str, Any]]:
+    provider = normalize_provider(
+        config.get("llm_provider", DEFAULT_CONFIG["llm_provider"])
+    )
+    provider_bundle_override = config.get("provider_bundle_override")
+    provider_bundle = resolve_provider_bundle(provider, provider_bundle_override)
+    model_map = resolve_agent_model_map(config)
+    kwargs = dict(extra_kwargs or {})
+    return {
+        role: {
+            "provider": provider,
+            "model": model_map[role],
+            "provider_bundle": provider_bundle.asdict(),
+            "provider_bundle_override": provider_bundle_override,
+            "kwargs": dict(kwargs),
+        }
+        for role in ROLE_LLM_ORDER
+    }
 
 
 class TradingAgentsGraph:
@@ -83,21 +151,9 @@ class TradingAgentsGraph:
         if self.callbacks:
             llm_kwargs["callbacks"] = self.callbacks
 
-        deep_client = create_llm_client(
-            provider=self.config["llm_provider"],
-            model=self.config["deep_think_llm"],
-            base_url=self.config.get("backend_url"),
-            **llm_kwargs,
-        )
-        quick_client = create_llm_client(
-            provider=self.config["llm_provider"],
-            model=self.config["quick_think_llm"],
-            base_url=self.config.get("backend_url"),
-            **llm_kwargs,
-        )
-
-        self.deep_thinking_llm = deep_client.get_llm()
-        self.quick_thinking_llm = quick_client.get_llm()
+        self.role_llms = self._build_role_llms(llm_kwargs)
+        self.deep_thinking_llm = self.role_llms["research_manager"]
+        self.quick_thinking_llm = self.role_llms["market"]
         
         self.memory_log = TradingMemoryLog(self.config)
 
@@ -110,15 +166,14 @@ class TradingAgentsGraph:
             max_risk_discuss_rounds=self.config["max_risk_discuss_rounds"],
         )
         self.graph_setup = GraphSetup(
-            self.quick_thinking_llm,
-            self.deep_thinking_llm,
+            self.role_llms,
             self.tool_nodes,
             self.conditional_logic,
         )
 
         self.propagator = Propagator()
-        self.reflector = Reflector(self.quick_thinking_llm)
-        self.signal_processor = SignalProcessor(self.quick_thinking_llm)
+        self.reflector = Reflector(self.role_llms["risk_reflection"])
+        self.signal_processor = SignalProcessor(self.role_llms["risk_reflection"])
 
         # State tracking
         self.curr_state = None
@@ -130,10 +185,35 @@ class TradingAgentsGraph:
         self.graph = self.workflow.compile()
         self._checkpointer_ctx = None
 
+    def _build_role_llms(self, llm_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        role_llms: Dict[str, Any] = {}
+        for role, spec in build_role_llm_specs(self.config, extra_kwargs=llm_kwargs).items():
+            role_kwargs = dict(spec["kwargs"])
+            metadata = dict(role_kwargs.get("metadata") or {})
+            metadata.update({"agent_role": role, "model_name": spec["model"]})
+            if self.config.get("benchmark_model_set"):
+                metadata["model_set"] = self.config["benchmark_model_set"]
+            tags = list(role_kwargs.get("tags") or [])
+            tags.extend([f"role:{role}", f"model:{spec['model']}"])
+            role_kwargs["metadata"] = metadata
+            role_kwargs["tags"] = tags
+            client = create_llm_client(
+                provider=spec["provider"],
+                model=spec["model"],
+                provider_bundle_override=spec["provider_bundle_override"],
+                **role_kwargs,
+            )
+            role_llms[role] = client.get_llm()
+        return role_llms
+
     def _get_provider_kwargs(self) -> Dict[str, Any]:
         """Get provider-specific kwargs for LLM client creation."""
         kwargs = {}
-        provider = self.config.get("llm_provider", "").lower()
+        provider = normalize_provider(self.config.get("llm_provider", ""))
+
+        timeout_seconds = self.config.get("llm_timeout_seconds")
+        if timeout_seconds:
+            kwargs["timeout"] = float(timeout_seconds)
 
         if provider == "google":
             thinking_level = self.config.get("google_thinking_level")
@@ -149,6 +229,10 @@ class TradingAgentsGraph:
             effort = self.config.get("anthropic_effort")
             if effort:
                 kwargs["effort"] = effort
+
+        max_tokens = self.config.get("llm_max_tokens")
+        if max_tokens:
+            kwargs["max_completion_tokens"] = int(max_tokens)
 
         return kwargs
 

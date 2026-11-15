@@ -218,6 +218,8 @@ __marimo__/
 # Cache
 **/data_cache/
 
-# Local state
-.local-state/
+# Local linked worktrees
 .worktrees/
+.local-state/
+reports/
+runs/

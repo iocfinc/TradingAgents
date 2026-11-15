@@ -4,6 +4,11 @@ from typing import List, Optional, Tuple, Dict
 from rich.console import Console
 
 from cli.models import AnalystType
+from tradingagents.llm_clients.factory import (
+    Provider,
+    PROVIDER_DEFINITIONS,
+    get_provider_definition,
+)
 from tradingagents.llm_clients.model_catalog import get_model_options
 
 console = Console()
@@ -149,9 +154,19 @@ def _fetch_openrouter_models() -> List[Tuple[str, str]]:
 
 def select_openrouter_model() -> str:
     """Select an OpenRouter model from the newest available, or enter a custom ID."""
+    default_model = ("Tencent HY3 Preview (Recommended)", "tencent/hy3-preview")
     models = _fetch_openrouter_models()
+    seen = {default_model[1]}
+    ordered_models = [default_model]
+    for name, mid in models:
+        if not mid or mid in seen:
+            continue
+        seen.add(mid)
+        ordered_models.append((name, mid))
+        if len(ordered_models) >= 5:
+            break
 
-    choices = [questionary.Choice(name, value=mid) for name, mid in models[:5]]
+    choices = [questionary.Choice(name, value=mid) for name, mid in ordered_models]
     choices.append(questionary.Choice("Custom model ID", value="custom"))
 
     choice = questionary.select(
@@ -184,10 +199,12 @@ def _prompt_custom_model_id() -> str:
 
 def _select_model(provider: str, mode: str) -> str:
     """Select a model for the given provider and mode (quick/deep)."""
-    if provider.lower() == "openrouter":
+    provider_key = get_provider_definition(provider).key.value
+
+    if provider_key == Provider.OPENROUTER.value:
         return select_openrouter_model()
 
-    if provider.lower() == "azure":
+    if provider_key == Provider.AZURE.value:
         return questionary.text(
             f"Enter Azure deployment name ({mode}-thinking):",
             validate=lambda x: len(x.strip()) > 0 or "Please enter a deployment name.",
@@ -228,27 +245,17 @@ def select_deep_thinking_agent(provider) -> str:
     """Select deep thinking llm engine using an interactive selection."""
     return _select_model(provider, "deep")
 
-def select_llm_provider() -> tuple[str, str | None]:
-    """Select the LLM provider and its API endpoint."""
-    # (display_name, provider_key, base_url)
-    PROVIDERS = [
-        ("OpenAI", "openai", "https://api.openai.com/v1"),
-        ("Google", "google", None),
-        ("Anthropic", "anthropic", "https://api.anthropic.com/"),
-        ("xAI", "xai", "https://api.x.ai/v1"),
-        ("DeepSeek", "deepseek", "https://api.deepseek.com"),
-        ("Qwen", "qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
-        ("GLM", "glm", "https://open.bigmodel.cn/api/paas/v4/"),
-        ("OpenRouter", "openrouter", "https://openrouter.ai/api/v1"),
-        ("Azure OpenAI", "azure", None),
-        ("Ollama", "ollama", "http://localhost:11434/v1"),
-    ]
+def select_llm_provider() -> str:
+    """Select the canonical LLM provider key from the registry."""
 
     choice = questionary.select(
         "Select your LLM Provider:",
         choices=[
-            questionary.Choice(display, value=(provider_key, url))
-            for display, provider_key, url in PROVIDERS
+            questionary.Choice(
+                definition.display_name,
+                value=definition.key.value,
+            )
+            for definition in PROVIDER_DEFINITIONS
         ],
         instruction="\n- Use arrow keys to navigate\n- Press Enter to select",
         style=questionary.Style(
@@ -264,8 +271,7 @@ def select_llm_provider() -> tuple[str, str | None]:
         console.print("\n[red]No LLM provider selected. Exiting...[/red]")
         exit(1)
 
-    provider, url = choice
-    return provider, url
+    return choice
 
 
 def ask_openai_reasoning_effort() -> str:
